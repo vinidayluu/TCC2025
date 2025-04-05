@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notícias</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f4f4f4;
+        }
+
+        .header {
+            background-color: #c4170c;
+            color: white;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 20px;
+        }
+
+        .header button {
+            background-color: white;
+            color: #c4170c;
+            padding: 8px 12px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+
+        .container {
+            display: flex;
+            justify-content: center;
+            margin: 20px;
+        }
+
+        .news-section {
+            width: 600px;
+        }
+
+        .news-item {
+            background: white;
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .news-title {
+            color: #000;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .news-description {
+            font-size: 15px;
+            color: #444;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        .news-item img {
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+            margin-top: 10px;
+        }
+
+        .news-item a {
+            color: #1DA1F2;
+            text-decoration: none;
+        }
+
+        .news-item a:hover {
+            text-decoration: underline;
+        }
+
+        .delete-button {
+            background-color: red;
+            color: white;
+            border: none;
+            padding: 5px 8px;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 5px;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+
+        .publish-button {
+            background-color: #c4170c;
+            color: white;
+            padding: 10px;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .publish-button:hover {
+            background-color: #a6140b;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 300px;
+            text-align: center;
+        }
+
+        .modal-content input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>📰 Notícias</div>
+        <button onclick="logout()">Logout</button>
+    </div>
+
+    <div class="container">
+        <div class="news-section">
+            <button id="openModalButton" class="publish-button">Publicar Notícia</button>
+            <div id="newsContainer"></div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="publishModal" class="modal">
+        <div class="modal-content">
+            <h2>📝 Publicar Notícia</h2>
+            <input type="text" id="newsTitle" placeholder="Título da notícia">
+            <input type="text" id="newsCaption" placeholder="Descrição da notícia">
+            <input type="text" id="newsImage" placeholder="URL da imagem">
+            <div class="modal-buttons">
+                <button class="publish-button" onclick="publishNews()">Publicar</button>
+                <button onclick="closeModal()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const user = JSON.parse(sessionStorage.getItem("loggedInUser"));
+
+            if (!user) {
+                window.location.href = "./index.html";
+                return;
+            }
+
+            if (user.role === "admin") {
+                document.getElementById("openModalButton").style.display = "block";
+            }
+
+            loadNews();
+        });
+
+        function loadNews() {
+            fetch("/images")
+                .then(response => response.json())
+                .then(images => {
+                    const newsContainer = document.getElementById("newsContainer");
+                    newsContainer.innerHTML = '';
+
+                    images.forEach(image => {
+                        const newsItem = document.createElement("div");
+                        newsItem.classList.add("news-item");
+
+                        let formattedCaption = formatText(image.caption || "Descrição da notícia.");
+
+                        newsItem.innerHTML = `
+                            <div class="news-title">${image.title || "Título da Notícia"}</div>
+                            <div class="news-description">${formattedCaption}</div>
+                            ${image.url ? `<img src="${image.url}" alt="Imagem">` : ""}
+                            ${isAdmin() ? `<button class="delete-button" onclick="deleteImage('${image.id}')">Excluir</button>` : ""}
+                        `;
+
+                        newsContainer.appendChild(newsItem);
+                    });
+                });
+        }
+
+        function publishNews() {
+            const title = document.getElementById('newsTitle').value;
+            const caption = document.getElementById('newsCaption').value;
+            const imageUrl = document.getElementById('newsImage').value;
+
+            fetch('/save-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, caption, url: imageUrl })
+            }).then(() => {
+                closeModal();
+                loadNews();
+            });
+        }
+
+        function formatText(text) {
+            return text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+        }
+
+        window.deleteImage = function(id) {
+            if (!confirm("Tem certeza que deseja excluir esta notícia?")) return;
+
+            fetch(`/delete-image/${id}`, { method: 'DELETE' })
+                .then(response => {
+                    if (response.ok) {
+                        loadNews();
+                    } else {
+                        alert("Erro ao excluir a notícia!");
+                    }
+                })
+                .catch(error => console.error("Erro ao excluir:", error));
+        };
+
+        function isAdmin() {
+            const user = JSON.parse(sessionStorage.getItem("loggedInUser"));
+            return user && user.role === "admin";
+        }
+
+        function logout() {
+            sessionStorage.removeItem("loggedInUser");
+            window.location.href = "./index.html";
+        }
+
+        function closeModal() {
+            document.getElementById("publishModal").style.display = "none";
+        }
+
+        document.getElementById("openModalButton").addEventListener("click", () => {
+            document.getElementById("publishModal").style.display = "flex";
+        });
+        document.addEventListener("DOMContentLoaded", () => {
+        const user = JSON.parse(sessionStorage.getItem("loggedInUser"));
+
+        if (!user) {
+            window.location.href = "./index.html";
+            return;
+        }
+
+        // Se não for admin, esconder o botão de publicar
+        if (user.role !== "admin") {
+            document.getElementById("openModalButton").style.display = "none";
+        }
+
+        loadNews();
+    });
+
+    function publishNews() {
+        const user = JSON.parse(sessionStorage.getItem("loggedInUser"));
+
+        // Impedir usuários não admins de publicar
+        if (!user || user.role !== "admin") {
+            alert("Apenas administradores podem publicar notícias!");
+            return;
+        }
+
+        const title = document.getElementById('newsTitle').value;
+        const caption = document.getElementById('newsCaption').value;
+        const imageUrl = document.getElementById('newsImage').value;
+
+        fetch('/save-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, caption, url: imageUrl })
+        }).then(() => {
+            closeModal();
+            loadNews();
+        });
+    }
+
+    function isAdmin() {
+        const user = JSON.parse(sessionStorage.getItem("loggedInUser"));
+        return user && user.role === "admin";
+    }
+
+    function logout() {
+        sessionStorage.removeItem("loggedInUser");
+        window.location.href = "./index.html";
+    }
+
+    function closeModal() {
+        document.getElementById("publishModal").style.display = "none";
+    }
+
+    document.getElementById("openModalButton").addEventListener("click", () => {
+        if (isAdmin()) {
+            document.getElementById("publishModal").style.display = "flex";
+        } else {
+            alert("Apenas administradores podem publicar notícias!");
+        }
+    });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
